@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────
+# VARIABLES DE ENTORNO Y SECRETOS
+# Nunca subir archivos con credenciales al repositorio
+# ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# ─────────────────────────────────────────────
+# DEPENDENCIAS NODE
+# ─────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# ─────────────────────────────────────────────
+# LOGS
+# ─────────────────────────────────────────────
+logs/
+*.log
+
+# ─────────────────────────────────────────────
+# DOCKER
+# ─────────────────────────────────────────────
+.dockerignore
+
+# ─────────────────────────────────────────────
+# SISTEMA OPERATIVO
+# ─────────────────────────────────────────────
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# ─────────────────────────────────────────────
+# EDITORES E IDEs
+# ─────────────────────────────────────────────
+
+# VSCode
+.vscode/
+!.vscode/extensions.json
+
+# JetBrains (WebStorm, IntelliJ)
+.idea/
+*.iml
+
+# ─────────────────────────────────────────────
+# COBERTURA Y TESTS
+# ─────────────────────────────────────────────
+coverage/
+.nyc_output/
