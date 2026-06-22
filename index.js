@@ -13,9 +13,40 @@ const { Pool } = require('pg');
 const cors = require('cors');
 require('dotenv').config();
 
+const { procesarMatricula } = require('./matriculas.service');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Configuración de Swagger
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'MsMatriculas API',
+      version: '1.0.0',
+      description: 'Microservicio de Matrículas - API de integración',
+    },
+    servers: [
+      {
+        url: 'http://localhost:3003',
+        description: 'Servidor Local (Directo)'
+      },
+      {
+        url: 'http://localhost:81',
+        description: 'Servidor Gateway'
+      }
+    ],
+  },
+  apis: ['./index.js'],
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Configuración de la conexión a PostgreSQL
 const pool = new Pool({
@@ -27,33 +58,48 @@ const pool = new Pool({
 // En entorno de prueba (integración) usamos las credenciales de sandbox de Transbank.
 // En producción, se deben proveer vía variables de entorno.
 // ─────────────────────────────────────────────
-const { WebpayPlus, Environment } = require('transbank-sdk');
-
-// Credenciales de Sandbox (integración) proporcionadas por Transbank
-const SANDBOX_COMMERCE_CODE = '597020000540';
-const SANDBOX_API_KEY = '579B5317441BB0C95557E069884D734E675C3104587E32BB15771A97491E12C2';
+const { WebpayPlus, Environment, Options, IntegrationApiKeys, IntegrationCommerceCodes } = require('transbank-sdk');
 
 let webpay;
 if (process.env.WEBPAY_COMMERCE_CODE && process.env.WEBPAY_API_KEY) {
   // Modo producción: credenciales reales vía variables de entorno
-  webpay = new WebpayPlus.Transaction({
-    commerceCode: process.env.WEBPAY_COMMERCE_CODE,
-    apiKey: process.env.WEBPAY_API_KEY,
-    environment: Environment.Production
-  });
+  webpay = new WebpayPlus.Transaction(new Options(process.env.WEBPAY_COMMERCE_CODE, process.env.WEBPAY_API_KEY, Environment.Production));
 } else {
   // Modo integración/pruebas: credenciales de sandbox de Transbank
-  webpay = new WebpayPlus.Transaction({
-    commerceCode: SANDBOX_COMMERCE_CODE,
-    apiKey: SANDBOX_API_KEY,
-    environment: Environment.Integration
-  });
+  webpay = new WebpayPlus.Transaction(new Options(IntegrationCommerceCodes.WEBPAY_PLUS, IntegrationApiKeys.WEBPAY, Environment.Integration));
 }
 
 // ─────────────────────────────────────────────
 // POST /api/matriculas/webpay/create
 // Crea una transacción en Webpay y devuelve la URL y token para redirigir al usuario.
 // ─────────────────────────────────────────────
+/**
+ * @swagger
+ * /api/matriculas/webpay/create:
+ *   post:
+ *     summary: Crea una transacción en Webpay
+ *     description: Retorna la URL y token para redirigir al usuario al pago.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 example: 35000
+ *               returnUrl:
+ *                 type: string
+ *                 example: "http://localhost:4200/return"
+ *     responses:
+ *       200:
+ *         description: Transacción creada exitosamente
+ *       400:
+ *         description: Faltan campos
+ *       500:
+ *         description: Error interno
+ */
 app.post('/api/matriculas/webpay/create', async (req, res) => {
   const { amount, returnUrl } = req.body;
   if (!amount || !returnUrl) {
@@ -73,6 +119,27 @@ app.post('/api/matriculas/webpay/create', async (req, res) => {
 // GET /api/matriculas/estudiantes/:rut
 // Busca un estudiante por RUT y retorna sus datos + apoderado asociado.
 // ─────────────────────────────────────────────
+/**
+ * @swagger
+ * /api/matriculas/estudiantes/{rut}:
+ *   get:
+ *     summary: Obtiene estudiante y apoderado por RUT
+ *     description: Busca un estudiante por RUT y retorna sus datos junto con el apoderado asociado.
+ *     parameters:
+ *       - in: path
+ *         name: rut
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: RUT del estudiante
+ *     responses:
+ *       200:
+ *         description: Datos obtenidos exitosamente
+ *       404:
+ *         description: Estudiante no encontrado
+ *       500:
+ *         description: Error interno
+ */
 app.get('/api/matriculas/estudiantes/:rut', async (req, res) => {
   try {
     const { rut } = req.params;
@@ -119,127 +186,58 @@ app.get('/api/matriculas/estudiantes/:rut', async (req, res) => {
 // Registra o actualiza la matrícula de un estudiante.
 // Si se envía token_ws, primero confirma el pago con Webpay antes de guardar en BD.
 // ─────────────────────────────────────────────
+/**
+ * @swagger
+ * /api/matriculas:
+ *   post:
+ *     summary: Registra o actualiza la matrícula
+ *     description: Registra un estudiante y apoderado. Si trae token_ws, confirma el pago con Webpay.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               token_ws:
+ *                 type: string
+ *                 description: Token de Webpay Plus (opcional)
+ *               isNewStudent:
+ *                 type: boolean
+ *               nombreAlumno:
+ *                 type: string
+ *               apellidosAlumno:
+ *                 type: string
+ *               rutAlumno:
+ *                 type: string
+ *               curso:
+ *                 type: number
+ *               nombreApoderado:
+ *                 type: string
+ *               rutApoderado:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Matrícula exitosa
+ *       400:
+ *         description: Pago no autorizado
+ *       500:
+ *         description: Error interno
+ */
 app.post('/api/matriculas', async (req, res) => {
   const client = await pool.connect();
   try {
-    // Si se envía token_ws, validar la transacción con Webpay antes de guardar
-    if (req.body.token_ws) {
-      const commitResponse = await webpay.commit(req.body.token_ws);
-      if (commitResponse.status !== 'AUTHORIZED') {
-        return res.status(400).json({ error: 'Pago no autorizado por Webpay.' });
-      }
-    }
-
     await client.query('BEGIN');
-
-    const {
-      isNewStudent,
-      nombreAlumno,
-      apellidosAlumno,
-      rutAlumno,
-      curso: cursoId,
-      nombreApoderado,
-      rutApoderado
-    } = req.body;
-
-    const cleanRutAlumno = rutAlumno.trim();
-    const cleanRutApoderado = rutApoderado.trim();
-
-    // 1. PROCESAR ALUMNO
-    const alumnoNombres = nombreAlumno.trim();
-    const alumnoApellidos = apellidosAlumno.trim().split(/\s+/);
-    const alumnoApePaterno = alumnoApellidos[0] || '';
-    const alumnoApeMaterno = alumnoApellidos.slice(1).join(' ') || '';
-
-    let estudianteId;
-
-    if (isNewStudent) {
-      const cleanString = (str) =>
-        str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, '');
-      const emailAlumno = `${cleanString(alumnoNombres)}.${cleanString(alumnoApePaterno)}@colegio.cl`;
-      const defaultPass = '$2a$12$Iy8XTvbNC7Y.RWipf8O8f.vNU3VrVNC9m4Iq.02bPi.6pRbHYL66y';
-
-      const insertUsuarioQuery = `
-        INSERT INTO usuarios (rol_id, rut, nombre, apellido_paterno, apellido_materno, email, password, activo)
-        VALUES (3, $1, $2, $3, $4, $5, $6, true)
-        RETURNING usuario_id
-      `;
-      const resUsuario = await client.query(insertUsuarioQuery, [cleanRutAlumno, alumnoNombres, alumnoApePaterno, alumnoApeMaterno, emailAlumno, defaultPass]);
-      estudianteId = resUsuario.rows[0].usuario_id;
-
-      const insertEstudianteQuery = `
-        INSERT INTO estudiantes (estudiante_id, curso_id)
-        VALUES ($1, $2)
-      `;
-      await client.query(insertEstudianteQuery, [estudianteId, Number(cursoId)]);
-    } else {
-      const searchUserQuery = `SELECT usuario_id FROM usuarios WHERE rut = $1 LIMIT 1`;
-      const searchRes = await client.query(searchUserQuery, [cleanRutAlumno]);
-      if (searchRes.rows.length === 0) {
-        throw new Error('Estudiante no encontrado en el sistema.');
-      }
-      estudianteId = searchRes.rows[0].usuario_id;
-
-      const updateEstudianteQuery = `
-        UPDATE estudiantes
-        SET curso_id = $1
-        WHERE estudiante_id = $2
-      `;
-      await client.query(updateEstudianteQuery, [Number(cursoId), estudianteId]);
-    }
-
-    // 2. PROCESAR APODERADO
-    const apoApellidosList = nombreApoderado.trim().split(/\s+/);
-    const apoNombre = apoApellidosList[0] || '';
-    const apoApePaterno = apoApellidosList[1] || '';
-    const apoApeMaterno = apoApellidosList.slice(2).join(' ') || '';
-
-    const searchApoQuery = `SELECT usuario_id FROM usuarios WHERE rut = $1 LIMIT 1`;
-    const searchApoRes = await client.query(searchApoQuery, [cleanRutApoderado]);
-
-    let apoderadoId;
-    if (searchApoRes.rows.length > 0) {
-      apoderadoId = searchApoRes.rows[0].usuario_id;
-      const updateApoUser = `
-        UPDATE usuarios 
-        SET nombre = $1, apellido_paterno = $2, apellido_materno = $3 
-        WHERE usuario_id = $4
-      `;
-      await client.query(updateApoUser, [apoNombre, apoApePaterno, apoApeMaterno, apoderadoId]);
-    } else {
-      const cleanString = (str) =>
-        str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, '');
-      const emailApo = `${cleanString(apoNombre)}.${cleanString(apoApePaterno || 'apoderado')}@colegio.cl`;
-      const defaultPass = '$2a$12$Iy8XTvbNC7Y.RWipf8O8f.vNU3VrVNC9m4Iq.02bPi.6pRbHYL66y';
-
-      const insertApoUser = `
-        INSERT INTO usuarios (rol_id, rut, nombre, apellido_paterno, apellido_materno, email, password, activo)
-        VALUES (4, $1, $2, $3, $4, $5, $6, true)
-        RETURNING usuario_id
-      `;
-      const resApoUser = await client.query(insertApoUser, [cleanRutApoderado, apoNombre, apoApePaterno, apoApeMaterno, emailApo, defaultPass]);
-      apoderadoId = resApoUser.rows[0].usuario_id;
-    }
-
-    await client.query(`
-      INSERT INTO apoderados (apoderado_id)
-      VALUES ($1)
-      ON CONFLICT (apoderado_id) DO NOTHING
-    `, [apoderadoId]);
-
-    await client.query(`DELETE FROM apoderado_estudiante WHERE estudiante_id = $1`, [estudianteId]);
-
-    await client.query(`
-      INSERT INTO apoderado_estudiante (apoderado_id, estudiante_id)
-      VALUES ($1, $2)
-    `, [apoderadoId, estudianteId]);
-
+    
+    // Llamar al servicio que contiene la lógica de negocio y validación de cupos
+    const result = await procesarMatricula(client, req.body, webpay);
+    
     await client.query('COMMIT');
-    return res.json({ success: true, estudianteId, apoderadoId });
+    return res.json(result);
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error al procesar POST /api/matriculas:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return res.status(400).json({ error: error.message || 'Error al procesar la matrícula' });
   } finally {
     client.release();
   }
