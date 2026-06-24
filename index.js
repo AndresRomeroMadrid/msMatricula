@@ -50,7 +50,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Configuración de la conexión a PostgreSQL
 const pool = new Pool({
-  connectionString: process.env.DB_URL || 'postgresql://postgres:PossGAdmin#secure-key@db:5432/colegio'
+  connectionString: process.env.DB_URL || 'postgresql://postgres:PossGAdmin#secure-key@db:5432/colegio',
+  ssl: process.env.DB_SSL === 'true'
+    ? { rejectUnauthorized: false }
+    : undefined
 });
 
 // ─────────────────────────────────────────────
@@ -228,10 +231,10 @@ app.post('/api/matriculas', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
+
     // Llamar al servicio que contiene la lógica de negocio y validación de cupos
     const result = await procesarMatricula(client, req.body, webpay);
-    
+
     await client.query('COMMIT');
     return res.json(result);
   } catch (error) {
