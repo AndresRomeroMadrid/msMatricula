@@ -16,7 +16,15 @@ require('dotenv').config();
 const { procesarMatricula } = require('./matriculas.service');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['https://rda-registro.cl', 'http://localhost:4200'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+app.options('*', cors());
+
 app.use(express.json());
 
 // Configuración de Swagger
@@ -50,7 +58,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Configuración de la conexión a PostgreSQL
 const pool = new Pool({
-  connectionString: process.env.DB_URL || 'postgresql://postgres:PossGAdmin#secure-key@db:5432/colegio'
+  connectionString: process.env.DB_URL || 'postgresql://postgres:PossGAdmin#secure-key@db:5432/colegio',
+  ssl: process.env.DB_SSL === 'true'
+    ? { rejectUnauthorized: false }
+    : undefined
 });
 
 // ─────────────────────────────────────────────
@@ -228,10 +239,10 @@ app.post('/api/matriculas', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
+
     // Llamar al servicio que contiene la lógica de negocio y validación de cupos
     const result = await procesarMatricula(client, req.body, webpay);
-    
+
     await client.query('COMMIT');
     return res.json(result);
   } catch (error) {
