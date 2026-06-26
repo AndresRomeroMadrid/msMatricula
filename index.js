@@ -17,7 +17,7 @@ const { procesarMatricula } = require('./matriculas.service');
 
 const app = express();
 app.use(cors({
-  origin: ['*'],
+  origin: ['https://rda-registro.cl', 'http://localhost:4200'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
