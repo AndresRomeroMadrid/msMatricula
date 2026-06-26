@@ -197,4 +197,33 @@ MsMatriculas/
 ├── Dockerfile        # Imagen Docker del servicio
 └── README.md         # Documentación
 ```
-# msMatricula
+## Pruebas Unitarias (Vitest)
+
+Para asegurar la calidad y fiabilidad del proceso de matrícula, se implementaron pruebas unitarias utilizando **Vitest**.
+
+### ¿Qué se evaluó?
+Se evaluó la lógica central del servicio de matrículas (ubicada en `matriculas.service.test.js` o equivalente), cubriendo las siguientes reglas de negocio:
+
+1. **Datos obligatorios:** Se valida que el sistema rechace el intento de matrícula si faltan campos clave (por ejemplo, nombre, RUT, curso).
+2. **Control de cupos:** Se asegura que el curso no exceda su límite máximo permitido (30 estudiantes).
+3. **Matrícula exitosa:** Se verifica que el flujo de inscripción funcione correctamente cuando se cumplen todas las condiciones, se tiene el cupo y los datos son válidos.
+4. **Rango de edad:** Se comprueba que la edad del estudiante esté estrictamente dentro del rango permitido (entre 4 y 18 años).
+
+### ¿Cómo ejecutarlas?
+Asegúrate de haber instalado las dependencias (`npm install`) y luego ejecuta el siguiente comando en la raíz del microservicio:
+
+```bash
+npx vitest run
+```
+
+### Resultados esperados
+Al ejecutar el comando, Vitest correrá la suite de pruebas sin necesidad de levantar una base de datos real (mediante mocking o en un entorno aislado) y deberías ver en la consola que los **4 tests pasan exitosamente**, indicando que la lógica de validación funciona tal como se espera.
+
+```text
+ RUN  v4.1.9
+
+ ✓ matriculas.service.test.js (4 tests)
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+```
