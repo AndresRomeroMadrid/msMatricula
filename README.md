@@ -8,12 +8,15 @@ Microservicio encargado de gestionar el proceso de matrícula escolar. Permite c
 
 | Tecnología | Versión |
 |---|---|
-| Node.js | 18 (Alpine) |
+| Node.js | 22 (Alpine) |
+| Gestor de paquetes | pnpm 11.12.0 (vía Corepack) |
 | Express | ^4.18.2 |
 | PostgreSQL (`pg`) | ^8.11.3 |
 | transbank-sdk | ^6.1.1 |
 | dotenv | ^16.3.1 |
 | cors | ^2.8.5 |
+| swagger-jsdoc / swagger-ui-express | ^6.3.0 / ^5.0.1 |
+| Vitest (dev) | ^4.1.9 |
 
 ---
 
@@ -36,10 +39,15 @@ El archivo `.env` debe ubicarse en la raíz del proyecto. Las variables disponib
 
 ## Instalación local
 
+El proyecto usa **pnpm** como gestor de paquetes (declarado en `packageManager` dentro de `package.json`, gestionado vía Corepack).
+
 ```bash
-npm install
-node index.js
+corepack enable
+pnpm install
+pnpm start
 ```
+
+> `pnpm-workspace.yaml` habilita el build de scripts nativos solo para `@scarf/scarf` (`allowBuilds`).
 
 ---
 
@@ -47,7 +55,7 @@ node index.js
 
 ### Dockerfile
 
-El servicio incluye un `Dockerfile` basado en `node:18-alpine` que expone el puerto `3003`.
+El servicio incluye un `Dockerfile` basado en `node:22-alpine` que expone el puerto `3003`. La imagen habilita Corepack para instalar dependencias con **pnpm** (`pnpm-lock.yaml` + `pnpm-workspace.yaml`) en modo `--frozen-lockfile`.
 
 ```bash
 docker build -t ms-matriculas .
@@ -68,6 +76,27 @@ ms-matriculas:
   depends_on:
     - db
 ```
+
+---
+
+## CI/CD
+
+El repositorio incluye un workflow de GitHub Actions (`.github/workflows/deploy.yaml`) que se dispara en cada push a `main`:
+
+1. **`test`**: instala dependencias con pnpm (`pnpm/action-setup` + `pnpm install --frozen-lockfile`) sobre Node 20.
+2. **`build_and_push`**: construye la imagen Docker y la publica en Docker Hub como `${DOCKER_USERNAME}/ms-matricula`, con tags `latest` y el SHA del commit.
+
+---
+
+## Documentación interactiva (Swagger)
+
+El servicio expone documentación OpenAPI generada con `swagger-jsdoc` a partir de los comentarios en `index.js`, servida con `swagger-ui-express` en:
+
+```
+GET /api-docs
+```
+
+Incluye las definiciones de los tres endpoints y los servidores configurados (local directo en `:3003` y gateway en `:81`).
 
 ---
 
@@ -191,11 +220,16 @@ Registra o actualiza la matrícula de un estudiante. Si se incluye `token_ws`, p
 
 ```
 MsMatriculas/
-├── index.js          # Lógica principal del microservicio
-├── package.json      # Dependencias y scripts
-├── .env              # Variables de entorno (no subir a repositorio)
-├── Dockerfile        # Imagen Docker del servicio
-└── README.md         # Documentación
+├── index.js                      # Servidor Express, rutas y Swagger
+├── matriculas.service.js         # Lógica de negocio (procesarMatricula)
+├── matriculas.service.test.js    # Pruebas unitarias (Vitest)
+├── package.json                  # Dependencias y scripts
+├── pnpm-lock.yaml                 # Lockfile de pnpm
+├── pnpm-workspace.yaml            # Configuración de pnpm (allowBuilds)
+├── .env                           # Variables de entorno (no subir a repositorio)
+├── Dockerfile                     # Imagen Docker del servicio
+├── .github/workflows/deploy.yaml  # CI/CD (test + build & push a Docker Hub)
+└── README.md                      # Documentación
 ```
 ## Pruebas Unitarias (Vitest)
 

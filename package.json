@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Microservicio de Matrículas - Maneja la lógica de validación de estudiantes y enlace de apoderados",
   "main": "index.js",
+  "packageManager": "pnpm@11.12.0",
   "scripts": {
     "start": "node index.js",
     "test": "vitest"
